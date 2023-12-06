@@ -3,16 +3,16 @@ package com.example.ecommerce.controller;
 import com.example.ecommerce.model.Producto;
 import com.example.ecommerce.model.Usuario;
 import com.example.ecommerce.service.ProductoServiceImpl;
+import com.example.ecommerce.service.UploadFileService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.Optional;
 
 @Controller
@@ -23,6 +23,9 @@ public class ProductoController {
 
    @Autowired
    private ProductoServiceImpl productoService;
+
+   @Autowired
+   private UploadFileService uploadFileService;
 
    @GetMapping
    public String show(Model model) {
@@ -36,7 +39,7 @@ public class ProductoController {
    }
 
    @PostMapping("/save")
-   public String save(Producto producto) {
+   public String save(Producto producto, @RequestParam("img") MultipartFile file) throws IOException {
       LOGGER.info("Este es el objeto producto {}", producto);
 
       Usuario usuario = Usuario.builder()
@@ -52,13 +55,20 @@ public class ProductoController {
 
       producto.setUsuario(usuario);
 
+      if (producto.getId() == null) { // Se crea el producto
+         String nombreImagen = uploadFileService.saveImage(file);
+         producto.setImagen(nombreImagen);
+      } else {
+
+      }
+
       productoService.save(producto);
       return "redirect:/productos";
    }
 
    @GetMapping("/edit/{id}")
    public String edit(@PathVariable Integer id, Model model) {
-      Producto producto = new Producto();
+      Producto producto;
       Optional<Producto> optionalProducto = productoService.get(id);
       producto = optionalProducto.get();
 
@@ -69,13 +79,34 @@ public class ProductoController {
    }
 
    @PostMapping("/update")
-   public String update(Producto producto) {
+   public String update(Producto producto, @RequestParam("img") MultipartFile file) throws IOException {
+      if (file.isEmpty()) {
+         Producto p;
+         p = productoService.get(producto.getId()).get();
+         producto.setImagen(p.getImagen());
+      } else {
+         Producto p = productoService.get(producto.getId()).get();
+
+         if (!p.getImagen().equals("default.jpg")) {
+            uploadFileService.deleteImage(p.getImagen());
+         }
+
+         String nombreImagen = uploadFileService.saveImage(file);
+         producto.setImagen(nombreImagen);
+      }
+
       productoService.update(producto);
       return "redirect:/productos";
    }
 
    @GetMapping("/delete/{id}")
    public String delete(@PathVariable Integer id) {
+      Producto p = productoService.get(id).get();
+
+      if (!p.getImagen().equals("default.jpg")) {
+         uploadFileService.deleteImage(p.getImagen());
+      }
+
       productoService.delete(id);
       return "redirect:/productos";
    }
